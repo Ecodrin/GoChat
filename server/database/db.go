@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"databse/sql"
 	_ "github.com/go-sql-driver/mysql"
+
+
+	"server/handlers"
 )
 
 func InitDb(dataSourceName string) *sql.DB {
@@ -22,3 +25,12 @@ func InitDb(dataSourceName string) *sql.DB {
 	return DB
 }
 
+
+
+func CreateUser(DB * sql.DB) {
+	s := &handlers.User{
+		Login: "dcasda",
+		HashPassword: 123,
+	}
+	fmt.Println(s)
+}
