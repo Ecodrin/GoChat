@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"database/sql"
 	_ "github.com/go-sql-driver/mysql"
-
-
-	"server/handlers"
 	"time"
+	"server/handlers"
 )
 
 func InitDb(dataSourceName string) (*sql.DB, error) {
@@ -31,7 +29,7 @@ func CreateUser(DB * sql.DB, user * handlers.User) error {
 	return err
 }
 
-func GetUserById(DB *sql.DB, id int64) (*handlers.User, error) {
+func GetUserById(DB *sql.DB, id int) (*handlers.User, error) {
     var user handlers.User
     err := DB.QueryRow("SELECT id, login, created_at, password FROM users WHERE id = ?", id).Scan(
         &user.Id, &user.Login, &user.CreatedAt, &user.HashPassword)
@@ -43,15 +41,12 @@ func GetUserById(DB *sql.DB, id int64) (*handlers.User, error) {
 
 
 func GetUserByLogin(DB *sql.DB, login string) (*handlers.User, error) {
-    query := "SELECT id, login, password, created_at FROM users WHERE login = ?"
+    query := "SELECT id, login, password, created_at, online FROM users WHERE login = ?"
     row := DB.QueryRow(query, login)
 
     var user handlers.User
-    err := row.Scan(&user.Id, &user.Login, &user.HashPassword, &user.CreatedAt)
+    err := row.Scan(&user.Id, &user.Login, &user.HashPassword, &user.CreatedAt, &user.Online)
     if err != nil {
-        if err == sql.ErrNoRows {
-            return nil, fmt.Errorf("user not found")
-        }
         return nil, err
     }
 
@@ -63,7 +58,7 @@ func CreateConversation(DB * sql.DB, user1Id int, user2Id int) (*handlers.Conver
     if err == nil && existingConv != nil {
         return existingConv, nil
     }
-	query := "INSERT INTO conversation (user1_id, user2_id) VALUES (?, ?)"
+	query := "INSERT INTO conversations (user1_id, user2_id) VALUES (?, ?)"
 	result, err := DB.Exec(query, user1Id, user2Id)
 	if err != nil {
 		return nil, err
@@ -76,8 +71,8 @@ func CreateConversation(DB * sql.DB, user1Id int, user2Id int) (*handlers.Conver
 
 	conversation := &handlers.Conversation{
 		ID: int(id),
-		SenderId: user1Id,
-		ReceiverId: user2Id,
+		User1Id: user1Id,
+		User2Id: user2Id,
 		CreatedAt: time.Now(),
 	}
 	return conversation, nil
@@ -89,7 +84,7 @@ func GetConversationBetweenUsers(db *sql.DB, user1ID, user2ID int) (*handlers.Co
     row := db.QueryRow(query, user1ID, user2ID, user2ID, user1ID)
 
     var conversation handlers.Conversation
-    err := row.Scan(&conversation.ID, &conversation.SenderId, &conversation.ReceiverId, &conversation.CreatedAt)
+    err := row.Scan(&conversation.ID, &conversation.User1Id, &conversation.User2Id, &conversation.CreatedAt)
     if err != nil {
         return nil, err
     }
@@ -102,7 +97,7 @@ func GetConversationByID(db *sql.DB, id int) (*handlers.Conversation, error) {
     row := db.QueryRow(query, id)
 
     var conversation handlers.Conversation
-    err := row.Scan(&conversation.ID, &conversation.SenderId, &conversation.ReceiverId, &conversation.CreatedAt)
+    err := row.Scan(&conversation.ID, &conversation.User1Id, &conversation.User2Id, &conversation.CreatedAt)
     if err != nil {
         if err == sql.ErrNoRows {
             return nil, fmt.Errorf("conversation not found")
@@ -133,15 +128,15 @@ func CreateMsg(DB * sql.DB, conversationID int, senderID int, body string, sentA
 	return &msg, nil
 }
 
-func GetMsgById(DB * sql.DB, id int) (*handlers.DataBaseMsg, error) {
-	query := "SELECT id, conversation_id, sender_id, body, sent_at FROM messages WHERE id = ?"
+func GetMsgById(DB *sql.DB, id int) (*handlers.DataBaseMsg, error) {
+    query := "SELECT id, conversation_id, sender_id, body, sent_at FROM messages WHERE id = ?"
     row := DB.QueryRow(query, id)
-	var msg handlers.DataBaseMsg
-	err := row.Scan(&msg.ID, &msg.SenderId, &msg.Body, &msg.SentAt)
-	if err != nil {
-		return nil, err
-	}
-	return &msg, err
+    var msg handlers.DataBaseMsg
+    err := row.Scan(&msg.ID, &msg.ConversationId, &msg.SenderId, &msg.Body, &msg.SentAt)
+    if err != nil {
+        return nil, err
+    }
+    return &msg, nil
 }
 
 func GetMsgsByConversationID(DB * sql.DB, conversationID int) ([]handlers.DataBaseMsg, error) {
@@ -162,3 +157,84 @@ func GetMsgsByConversationID(DB * sql.DB, conversationID int) ([]handlers.DataBa
 	}
 	return msgs, nil
 }
+
+
+func GetMessagesBySenderID(db *sql.DB, senderID int) ([]handlers.DataBaseMsg, error) {
+    query := "SELECT id, conversation_id, sender_id, body, sent_at FROM messages WHERE sender_id = ? ORDER BY sent_at DESC"
+    rows, err := db.Query(query, senderID)
+    if err != nil {
+        return nil, fmt.Errorf("error getting messages: %v", err)
+    }
+    defer rows.Close()
+
+    var messages []handlers.DataBaseMsg
+    for rows.Next() {
+        var msg handlers.DataBaseMsg
+        err := rows.Scan(&msg.ID, &msg.ConversationId, &msg.SenderId, &msg.Body, &msg.SentAt)
+        if err != nil {
+            return nil, err
+        }
+        messages = append(messages, msg)
+    }
+
+    return messages, nil
+}
+
+func GetUsersLoginsByConversaionId(db *sql.DB, Id int) (string, string, error) {
+	conv, err := GetConversationByID(db, Id)
+	if err != nil {
+		return "", "", err
+	}
+
+	user1, err := GetUserById(db, conv.User1Id)
+	if err != nil {
+		return "", "", err
+	}
+	user2, err := GetUserById(db, conv.User2Id)
+	if err != nil {
+		return"", "", err
+	}
+	
+	return user1.Login, user2.Login, nil
+}
+
+func UpdateUserOnline(db *sql.DB, id int, online bool) error {
+    onlineValue := 0
+    if online {
+        onlineValue = 1
+    }
+    
+    query := "UPDATE users SET online = ? WHERE id = ?"
+    result, err := db.Exec(query, onlineValue, id)
+    if err != nil {
+        return fmt.Errorf("error updating user online: %v", err)
+    }
+
+    rowsAffected, err := result.RowsAffected()
+    if err != nil {
+        return fmt.Errorf("error getting rows affected: %v", err)
+    }
+
+    if rowsAffected == 0 {
+        return fmt.Errorf("user with id %d not found", id)
+    }
+
+    return nil
+}
+
+func AddMessageToConversation(DB *sql.DB, senderID, receiverID int, body string, sentAt time.Time) error {
+    conversation, err := GetConversationBetweenUsers(DB, senderID, receiverID)
+    if err != nil {
+        conversation, err = CreateConversation(DB, senderID, receiverID)
+        if err != nil {
+            return err
+        }
+    }
+    
+    _, err = CreateMsg(DB, conversation.ID, senderID, body, sentAt)
+    if err != nil {
+        return err
+    }
+    return nil
+}
+

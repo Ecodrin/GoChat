@@ -1,20 +1,18 @@
 package handlers
 
 import (
-	"net"
 	"time"
 )
 
 
 type Conversation struct {
     ID        	int       	`json:"id"`
-	SenderId 	int 		`json:"sender_id"`
-	ReceiverId 	int 		`json:"receiver_id"`
+	User1Id 	int 		`json:"user1_id"`
+	User2Id 	int 		`json:"user2_id"`
     CreatedAt 	time.Time 	`json:"created_at"`
 }
 
 type Msg struct {
-	ID			int 		`json:"id"`
 	Sender    	string 		`json:"sender"`
 	Receiver  	string 		`json:"receiver"`
 	Timestamp 	int64  		`json:"timestamp"`
@@ -41,11 +39,7 @@ type AuthMsg struct {
 type User struct {
 	Id 				int 				`json:"id"`
 	Login        	string   			`json:"login"`
-	HashPassword 	[32]byte 			`json:"hash_password"`
-	CreatedAt 		time.Time 			`json:"create_at"`
-
-	Conn   			net.Conn
-	Chats  			map[string][]Msg
-	Online			bool
+	HashPassword 	string 				`json:"hash_password"`
+	CreatedAt 		time.Time 			`json:"created_at"`
+	Online			bool				`json:"online"`
 }
-
