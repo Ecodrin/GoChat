@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"log"
 	"net"
@@ -12,37 +13,33 @@ import (
 	"syscall"
 	"time"
 
-
-	"server/utility"
-	"server/handlers"
 	"server/database"
-
+	"server/handlers"
+	"server/utility"
 
 	"database/sql"
 	_ "github.com/go-sql-driver/mysql"
 )
 
-
 type Server struct {
+	tcpServer *TCPServer
+	mutex     sync.Mutex
 
-	tcpServer 				*TCPServer
-	mutex     				sync.Mutex
+	logger     *log.Logger
+	loggerFile *os.File
 
-	logger     				*log.Logger
-	loggerFile 				*os.File
+	kafkaProducer         *kafka.Producer
+	kafkaMsgTopic         string
+	kafkaBootstrapServers string
 
-	kafkaProducer         	*kafka.Producer
-	kafkaMsgTopic         	string
-	kafkaBootstrapServers 	string
-
-	DB 						*sql.DB
-	Conns 					map[int]net.Conn
+	DB    *sql.DB
+	Conns map[int]net.Conn
 }
 
 func NewServer(domain string, port int, kafkaBootstrapServers string, kafkaMsgTopic string, dataSourceName string) (*Server, error) {
 	logger := log.Default()
 	err := os.Mkdir("logs", 0666)
-	if err != nil && err.(*os.PathError).Err.Error() != "file exists"{
+	if err != nil && err.(*os.PathError).Err.Error() != "file exists" {
 		return nil, err
 	}
 	f, err := os.Create("logs/server.log")
@@ -78,14 +75,14 @@ func NewServer(domain string, port int, kafkaBootstrapServers string, kafkaMsgTo
 	logger.Println("database init successful")
 
 	server := &Server{
-		logger:                	logger,
-		loggerFile:            	f,
-		tcpServer:             	tcpServer,
-		kafkaProducer:         	producer,
-		kafkaMsgTopic:         	kafkaMsgTopic,
-		kafkaBootstrapServers: 	kafkaBootstrapServers,
-		DB:						DB,
-		Conns:					make(map[int]net.Conn),
+		logger:                logger,
+		loggerFile:            f,
+		tcpServer:             tcpServer,
+		kafkaProducer:         producer,
+		kafkaMsgTopic:         kafkaMsgTopic,
+		kafkaBootstrapServers: kafkaBootstrapServers,
+		DB:                    DB,
+		Conns:                 make(map[int]net.Conn),
 	}
 
 	err = database.RunMigrations(server.DB)
@@ -130,7 +127,6 @@ func (server *Server) ConsumerWork() {
 		}
 		server.mutex.Lock()
 
-		
 		userReceiver, err := database.GetUserByLogin(server.DB, msgJSON.Receiver)
 
 		if err == nil {
@@ -160,10 +156,10 @@ func (server *Server) ConsumerWork() {
 		} else {
 			server.logger.Println("user " + msgJSON.Receiver + " not found")
 			errorMsg := handlers.Msg{
-				Sender: msgJSON.Sender,
+				Sender:   msgJSON.Sender,
 				Receiver: msgJSON.Receiver,
-				Status: 1,
-				Text: "incorrect user",
+				Status:   1,
+				Text:     "incorrect user",
 			}
 			userSender, err := database.GetUserByLogin(server.DB, msgJSON.Sender)
 			if err != nil {
@@ -223,14 +219,13 @@ func (server *Server) handleConnection(conn net.Conn) {
 		return
 	}
 
-
 	server.mutex.Lock()
 	user, err := database.GetUserByLogin(server.DB, msg.Login)
 	server.mutex.Unlock()
 
 	if (err == sql.ErrNoRows && msg.Status == 1) || (err == nil && user.HashPassword != utility.ToHex(msg.HashPassword)) || (err == nil && msg.Status == 0) || (err == nil && user.Online) {
 		server.logger.Println("user " + msg.Login + " not found or invalid password")
-		output := handlers.AuthMsg{Login: msg.Login, HashPassword: msg.HashPassword, Status: 2, }
+		output := handlers.AuthMsg{Login: msg.Login, HashPassword: msg.HashPassword, Status: 2}
 		err = sendMessage(conn, output)
 		return
 	}
@@ -238,11 +233,11 @@ func (server *Server) handleConnection(conn net.Conn) {
 	server.mutex.Lock()
 	fl := true
 	if err == sql.ErrNoRows {
-		user = &handlers.User {
-			Login: 			msg.Login,
-			HashPassword: 	utility.ToHex(msg.HashPassword),
-			CreatedAt: 		time.Unix(msg.Timestamp, 0),
-			Online: 		true,
+		user = &handlers.User{
+			Login:        msg.Login,
+			HashPassword: utility.ToHex(msg.HashPassword),
+			CreatedAt:    time.Unix(msg.Timestamp, 0),
+			Online:       true,
 		}
 		fl = false
 		err = database.CreateUser(server.DB, user)
@@ -280,35 +275,36 @@ func (server *Server) handleConnection(conn net.Conn) {
 	if fl {
 		server.mutex.Lock()
 
-		msgs, err := database.GetMessagesBySenderID(server.DB, user.Id)
+		msgs, err := database.GetAllUserMessages(server.DB, user.Id)
 		if err != nil {
 			server.logger.Println(err.Error())
 			server.mutex.Unlock()
 			return
 		}
 		for _, imsg := range msgs {
-				user1Login, user2Login, err := database.GetUsersLoginsByConversaionId(server.DB, imsg.ConversationId)
-				if err != nil {
-					server.logger.Println("get old msgs: " + err.Error())
-				}
-				outMsg := handlers.Msg {
-					Timestamp: imsg.SentAt.Unix(),
-					Text: imsg.Body,
-					Status: 0,
-				}
-				if user1Login == user.Login {
-					outMsg.Sender = user1Login
-					outMsg.Receiver = user2Login
-				} else {
-					outMsg.Sender = user2Login
-					outMsg.Receiver = user1Login
-				}
-
-				err = sendMessage(conn, outMsg)
-				if err != nil {
-					server.logger.Println("get old msgs: " + err.Error())
-				}
+			fmt.Println(imsg)
+			user1Login, user2Login, err := database.GetUsersLoginsByConversaionId(server.DB, imsg.ConversationId)
+			if err != nil {
+				server.logger.Println("get old msgs: " + err.Error())
 			}
+			outMsg := handlers.Msg{
+				Timestamp: imsg.SentAt.Unix(),
+				Text:      imsg.Body,
+				Status:    0,
+			}
+			if user1Login == user.Login {
+				outMsg.Sender = user1Login
+				outMsg.Receiver = user2Login
+			} else {
+				outMsg.Sender = user2Login
+				outMsg.Receiver = user1Login
+			}
+
+			err = sendMessage(conn, outMsg)
+			if err != nil {
+				server.logger.Println("get old msgs: " + err.Error())
+			}
+		}
 		server.mutex.Unlock()
 	}
 
@@ -371,7 +367,7 @@ func (server *Server) sendToKafka(msg interface{}) error {
 
 func main() {
 
-	server, err := NewServer("localhost", 14232, ":9092", "msgTopic", "root:" + SecurityMySQLRootPassword + "@tcp(localhost:3306)/f.db?parseTime=true")
+	server, err := NewServer("localhost", 14232, ":9092", "msgTopic", "root:"+SecurityMySQLRootPassword+"@tcp(localhost:3306)/f.db?parseTime=true")
 	if err != nil {
 		server.logger.Fatal(err)
 		panic(err)

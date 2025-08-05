@@ -4,29 +4,27 @@ import (
 	"time"
 )
 
-
 type Conversation struct {
-    ID        	int       	`json:"id"`
-	User1Id 	int 		`json:"user1_id"`
-	User2Id 	int 		`json:"user2_id"`
-    CreatedAt 	time.Time 	`json:"created_at"`
+	ID        int       `json:"id"`
+	User1Id   int       `json:"user1_id"`
+	User2Id   int       `json:"user2_id"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type Msg struct {
-	Sender    	string 		`json:"sender"`
-	Receiver  	string 		`json:"receiver"`
-	Timestamp 	int64  		`json:"timestamp"`
-	Text      	string 		`json:"text"`
-	Status    	int64  		`json:"status"`
-
+	Sender    string `json:"sender"`
+	Receiver  string `json:"receiver"`
+	Timestamp int64  `json:"timestamp"`
+	Text      string `json:"text"`
+	Status    int64  `json:"status"`
 }
 
 type DataBaseMsg struct {
 	ID             int       `json:"id"`
-    ConversationId int       `json:"conversation_id"`
-    SenderId       int       `json:"sender_id"`
-    Body           string    `json:"body"`
-    SentAt         time.Time `json:"sent_at"`
+	ConversationId int       `json:"conversation_id"`
+	SenderId       int       `json:"sender_id"`
+	Body           string    `json:"body"`
+	SentAt         time.Time `json:"sent_at"`
 }
 
 type AuthMsg struct {
@@ -37,9 +35,9 @@ type AuthMsg struct {
 }
 
 type User struct {
-	Id 				int 				`json:"id"`
-	Login        	string   			`json:"login"`
-	HashPassword 	string 				`json:"hash_password"`
-	CreatedAt 		time.Time 			`json:"created_at"`
-	Online			bool				`json:"online"`
+	Id           int       `json:"id"`
+	Login        string    `json:"login"`
+	HashPassword string    `json:"hash_password"`
+	CreatedAt    time.Time `json:"created_at"`
+	Online       bool      `json:"online"`
 }
