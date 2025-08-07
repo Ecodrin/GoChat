@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"log"
 	"net"
@@ -93,7 +92,7 @@ func NewServer(domain string, port int, kafkaBootstrapServers string, kafkaMsgTo
 	return server, nil
 }
 
-func (server *Server) ConsumerWork() {
+func (server *Server) ConsumerWorkMsgsTopic() {
 	consumer, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers": server.kafkaBootstrapServers,
 		"group.id":          "myGroup",
@@ -180,7 +179,7 @@ func (server *Server) ConsumerWork() {
 func (server *Server) start() {
 
 	server.logger.Println("Server start")
-	go server.ConsumerWork()
+	go server.ConsumerWorkMsgsTopic()
 
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
@@ -282,7 +281,6 @@ func (server *Server) handleConnection(conn net.Conn) {
 			return
 		}
 		for _, imsg := range msgs {
-			fmt.Println(imsg)
 			user1Login, user2Login, err := database.GetUsersLoginsByConversaionId(server.DB, imsg.ConversationId)
 			if err != nil {
 				server.logger.Println("get old msgs: " + err.Error())
@@ -333,7 +331,7 @@ func (server *Server) handleConnection(conn net.Conn) {
 			break
 		}
 
-		err = server.sendToKafka(msg)
+		err = server.sendToKafkaMsgsTopic(msg)
 		if err != nil {
 			server.logger.Println(err.Error())
 		}
@@ -349,7 +347,7 @@ func (server *Server) Close() {
 	server.DB.Close()
 }
 
-func (server *Server) sendToKafka(msg interface{}) error {
+func (server *Server) sendToKafkaMsgsTopic(msg interface{}) error {
 	jsonMsg, err := json.Marshal(msg)
 	if err != nil {
 		server.logger.Println(err.Error())
