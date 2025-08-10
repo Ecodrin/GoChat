@@ -149,7 +149,7 @@ func (server *Server) ConsumerWorkMsgsTopic() {
 							server.logger.Println("kafka " + userReceiver.Login + " " + err.Error())
 						}
 					}
-					server.logger.Println(userReceiver.Login + " send to " + userSender.Login + " msg")
+					server.logger.Println(userSender.Login + " sent to " + userReceiver.Login + " msg")
 				}
 			}
 		} else {
