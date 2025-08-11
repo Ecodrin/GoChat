@@ -133,7 +133,7 @@ func (server *Server) ConsumerWorkMsgsTopic() {
 			if err != nil {
 				server.logger.Println("user " + msgJSON.Sender + " not found")
 			} else {
-				err = database.AddMessageToConversation(server.DB, userReceiver.Id, userSender.Id, msgJSON.Text, time.Unix(msgJSON.Timestamp, 0))
+				err = database.AddMessageToConversation(server.DB, userSender.Id, userReceiver.Id, msgJSON.Text, time.Unix(msgJSON.Timestamp, 0))
 				if err != nil {
 					server.logger.Println(err)
 				} else {
@@ -281,7 +281,7 @@ func (server *Server) handleConnection(conn net.Conn) {
 			return
 		}
 		for _, imsg := range msgs {
-			user1Login, user2Login, err := database.GetUsersLoginsByConversaionId(server.DB, imsg.ConversationId)
+			user1, user2, err := database.GetUsersByConversaionId(server.DB, imsg.ConversationId)
 			if err != nil {
 				server.logger.Println("get old msgs: " + err.Error())
 			}
@@ -290,12 +290,12 @@ func (server *Server) handleConnection(conn net.Conn) {
 				Text:      imsg.Body,
 				Status:    0,
 			}
-			if user1Login == user.Login {
-				outMsg.Sender = user1Login
-				outMsg.Receiver = user2Login
+			if user1.Id == imsg.SenderId {
+				outMsg.Sender = user1.Login
+				outMsg.Receiver = user2.Login
 			} else {
-				outMsg.Sender = user2Login
-				outMsg.Receiver = user1Login
+				outMsg.Sender = user2.Login
+				outMsg.Receiver = user1.Login
 			}
 
 			err = sendMessage(conn, outMsg)

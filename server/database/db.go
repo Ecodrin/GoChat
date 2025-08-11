@@ -182,22 +182,22 @@ func GetAllUserMessages(db *sql.DB, userID int) ([]handlers.DataBaseMsg, error) 
     return messages, nil
 }
 
-func GetUsersLoginsByConversaionId(db *sql.DB, Id int) (string, string, error) {
+func GetUsersByConversaionId(db *sql.DB, Id int) (*handlers.User, *handlers.User, error) {
 	conv, err := GetConversationByID(db, Id)
 	if err != nil {
-		return "", "", err
+		return nil, nil, err
 	}
 
 	user1, err := GetUserById(db, conv.User1Id)
 	if err != nil {
-		return "", "", err
+		return nil, nil, err
 	}
 	user2, err := GetUserById(db, conv.User2Id)
 	if err != nil {
-		return "", "", err
+		return nil, nil, err
 	}
 
-	return user1.Login, user2.Login, nil
+	return user1, user2, nil
 }
 
 func UpdateUserOnline(db *sql.DB, id int, online bool) error {

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 	"strconv"
+	"strings"
 )
 
 type Msg struct {
@@ -66,6 +67,11 @@ func registerOrAuth(ip string, port int, scanner *bufio.Scanner, status int64) *
 	fmt.Print("Write login: ")
 	scanner.Scan()
 	login := scanner.Text()
+	for !checkLoginIsCorrect(login) {
+		fmt.Print("Incorrect login. Write login: ")
+		scanner.Scan()
+		login = scanner.Text()
+	}
 	fmt.Print("Write password: ")
 	scanner.Scan()
 	password := scanner.Text()
@@ -116,6 +122,15 @@ func sendMessage(conn net.Conn, data interface{}) error {
 	}
 	_, err = conn.Write(append(jsonData, '\n'))
 	return err
+}
+
+func checkLoginIsCorrect(login string) bool {
+	if strings.IndexFunc(login, func(c rune) bool {
+		return !(('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || ('0' <= c && c <= '9'))
+	}) != -1 {
+		return false
+	}
+	return true
 }
 
 func clearScreen() {
